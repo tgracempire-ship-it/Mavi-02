@@ -1,0 +1,40 @@
+name: Build Mavisual EXE
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    # This fixes the warning by forcing GitHub to use the newer environment
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Portable EXE
+        run: npm run electron:build
+        env:
+          ELECTRON_MIRROR: "https://cdn.npmmirror.com/binaries/electron/"
+
+      - name: Upload Portable EXE Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mavisual-Desktop-App
+          path: dist-electron/*.exe
