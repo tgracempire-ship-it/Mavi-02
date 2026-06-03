@@ -1,0 +1,266 @@
+# Mavisual — Windows EXE Build Workflow
+
+> Complete step-by-step guide to compile Mavisual as a portable `.exe` for offline classroom use.
+
+---
+
+## Overview
+
+Mavisual is built with **Vite + React + TypeScript** and packaged as a desktop app using **Electron**. The final output is a portable Windows `.exe` file that runs with no internet connection, no installer needed.
+
+**Stack:**
+- Frontend: React 19 + Tailwind CSS v4 + Lucide Icons
+- Runtime: Electron 42
+- Bundler: Vite 6
+- Packager: electron-builder
+
+---
+
+## Prerequisites
+
+Install the following on your Windows machine before building:
+
+| Tool | Version | Download |
+|------|---------|----------|
+| Node.js | 20 LTS or higher | https://nodejs.org |
+| npm | bundled with Node | — |
+| Git (optional) | any | https://git-scm.com |
+
+> **Note:** You do not need Python, .NET, or any other runtime.
+
+---
+
+## Step 1 — Install Dependencies
+
+Open a terminal (PowerShell or CMD) inside the `mavisual/` folder:
+
+```bash
+npm install
+```
+
+This installs all packages listed in `package.json`, including Electron and electron-builder.
+
+If Electron download times out or is blocked, the project is already configured to use the Chinese mirror:
+
+```bash
+# Already set in scripts — runs automatically
+ELECTRON_MIRROR="https://cdn.npmmirror.com/binaries/electron/"
+```
+
+---
+
+## Step 2 — Test in Development Mode
+
+Before building the final EXE, verify the app runs correctly:
+
+```bash
+npm run electron:dev
+```
+
+This will:
+1. Build the Vite frontend into `dist/`
+2. Launch Electron pointing at the built `dist/index.html`
+3. Open DevTools automatically for inspection
+
+> If you see a white screen, check the browser console for errors and ensure `dist/index.html` was built correctly.
+
+---
+
+## Step 3 — Build the Production EXE
+
+Run the full build command:
+
+```bash
+npm run electron:build
+```
+
+Internally this executes:
+```
+vite build → esbuild (server.ts) → electron-builder --win --portable
+```
+
+**What each step does:**
+
+| Step | Command | Output |
+|------|---------|--------|
+| 1. Frontend build | `vite build` | `dist/` folder with all HTML/JS/CSS assets |
+| 2. Server bundle | `esbuild server.ts` | `dist/server.cjs` (not used in offline mode) |
+| 3. EXE packaging | `electron-builder` | `dist-electron/` containing the portable EXE |
+
+---
+
+## Step 4 — Locate Your EXE
+
+After the build completes, find your file at:
+
+```
+mavisual/
+└── dist-electron/
+    └── mavisual 0.1.0.exe    ← Your portable app
+```
+
+The file is a **single portable EXE** — no installation required. Copy it to any Windows machine and double-click to run.
+
+---
+
+## Step 5 — Test the EXE
+
+1. Double-click `mavisual 0.1.0.exe`
+2. The Mavisual window should open at 1280×800
+3. Confirm:
+   - The dashboard loads with all 6 strand cards
+   - A visualizer opens when clicked (e.g. Fraction Wall)
+   - The Workspace/Whiteboard tab loads
+   - The Offline indicator shows green
+   - No internet connection is required at any point
+
+---
+
+## Build Configuration Reference
+
+The build is controlled by the `"build"` section of `package.json`:
+
+```json
+{
+  "build": {
+    "appId": "com.mavisual.app",
+    "productName": "mavisual",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "electron-preload.js"
+    ],
+    "win": {
+      "target": "portable"
+    }
+  }
+}
+```
+
+**To customise:**
+
+| Setting | Change to |
+|---------|-----------|
+| App name | `"productName": "Mavisual Teaching Aid"` |
+| Output folder | `"output": "release"` |
+| Create installer instead | `"target": "nsis"` |
+| Add an app icon | Add `"icon": "src/assets/images/mavisual_logo.png"` (must be `.png`, 256×256 minimum) |
+
+---
+
+## Adding an App Icon
+
+To show your logo instead of the default Electron icon:
+
+1. Convert `mavisual_logo.jpg` to `mavisual_logo.ico` using an online tool (e.g. https://convertio.co)
+2. Place it in `src/assets/images/mavisual_logo.ico`
+3. Update `package.json`:
+   ```json
+   "win": {
+     "target": "portable",
+     "icon": "src/assets/images/mavisual_logo.ico"
+   }
+   ```
+4. Rebuild with `npm run electron:build`
+
+---
+
+## Offline Architecture Notes
+
+Mavisual is fully offline by design. Here is how each system works without internet:
+
+| Feature | How it works offline |
+|---------|---------------------|
+| Concept explanations | Served from `src/offlineBrain.ts` — a bundled knowledge base of all visualiser explanations |
+| Practice questions | Served from `src/offlineBrain.ts` — pre-written MCQ banks for each lab |
+| Visualisers | Pure React components — no API calls |
+| Whiteboard | Canvas-based drawing — fully local |
+| 3D solids | Three.js — bundled, no CDN |
+| Graph plotter | Custom canvas renderer — no library needed |
+| Fonts | Loaded from Google Fonts on first run; cached by the OS/browser engine. To make 100% offline, download fonts and self-host in `src/assets/` |
+
+---
+
+## Troubleshooting
+
+**"Cannot find Electron" error during build:**
+```bash
+npm run electron:repair
+```
+
+**Build fails with "ENOENT dist/index.html":**
+Run `npm run build` first, then run electron-builder manually:
+```bash
+npm run build
+npx electron-builder --win --portable
+```
+
+**App opens but shows blank white page:**
+- Check `electron-main.cjs` — the `win.loadFile()` path must point to `dist/index.html`
+- Run `npm run electron:dev` to check for console errors
+
+**Fonts look different in the EXE:**
+The app uses Google Fonts (Sora, DM Sans, DM Mono). In true offline environments, download and embed them:
+```css
+/* Replace the @import in src/index.css with local @font-face declarations */
+@font-face {
+  font-family: 'Sora';
+  src: url('./fonts/Sora-Bold.woff2') format('woff2');
+}
+```
+
+---
+
+## Quick Reference Commands
+
+```bash
+npm install              # Install all dependencies
+npm run electron:dev     # Test app in Electron (development)
+npm run electron:build   # Build portable EXE → dist-electron/
+npm run electron:repair  # Re-install Electron if broken
+npm run build            # Build frontend only (no Electron)
+npm run dev              # Run as web app only (browser)
+```
+
+---
+
+## File Structure (Post-Build)
+
+```
+mavisual/
+├── dist/                    ← Vite build output (web assets)
+│   ├── index.html
+│   ├── assets/
+│   └── server.cjs
+├── dist-electron/           ← Final EXE output
+│   └── mavisual 0.1.0.exe
+├── electron-main.cjs        ← Electron main process
+├── electron-preload.js      ← Electron preload (context bridge)
+├── src/
+│   ├── App.tsx              ← Main React app (upgraded UI)
+│   ├── index.css            ← Design system & animations
+│   ├── data.ts              ← Nigerian curriculum strand data
+│   ├── offlineBrain.ts      ← Offline explanations & questions
+│   ├── components/
+│   │   ├── Whiteboard.tsx           ← Drawing workspace
+│   │   ├── GeometryVisualizers.tsx
+│   │   ├── AlgebraVisualizers.tsx
+│   │   ├── NumberVisualizers.tsx
+│   │   ├── StatisticsVisualizers.tsx
+│   │   ├── CalculusVisualizers.tsx
+│   │   ├── ScienceVisualizers.tsx
+│   │   ├── ScientificCalculator.tsx
+│   │   └── TeacherOverlay.tsx
+│   └── whiteboard/
+│       ├── three/ThreeViewer.tsx    ← 3D solids (Three.js)
+│       └── graphing/GraphPlotter.tsx
+└── package.json
+```
+
+---
+
+*Mavisual — Nigerian Secondary Curriculum · Built for offline classrooms · 2026*
+
